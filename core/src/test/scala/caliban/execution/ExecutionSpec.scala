@@ -7,7 +7,8 @@ import caliban.GraphQL._
 import caliban.Macros.gqldoc
 import caliban.RootResolver
 import caliban.TestUtils._
-import caliban.Value.{ BooleanValue, StringValue }
+import caliban.Value.{ BooleanValue, StringValue, EnumValue }
+import caliban.InputValue.{ ListValue, ObjectValue }
 import caliban.parsing.adt.LocationInfo
 import zio.IO
 import zio.stream.ZStream
@@ -190,6 +191,43 @@ object ExecutionSpec extends DefaultRunnableSpec {
         assertM(
           interpreter.flatMap(_.execute(query, None, Map("name" -> StringValue("Amos Burton")))).map(_.data.toString)
         )(equalTo("""{"exists":false}"""))
+      },
+      testM("input object given as variable") {
+        val interpreter = graphQL(resolver).interpreter
+        val query       = gqldoc("""
+             query test($character: CharacterObjectArgs!) {
+               exists(character: $character)
+              }""")
+
+        val characterArg = ObjectValue(Map(
+            "name" -> StringValue("Amos Burton"),
+            "nicknames" -> ListValue(List()),
+            "origin" -> EnumValue("EARTH")
+          ))
+
+        val variables = Map("character" -> characterArg)
+
+        assertM(
+          interpreter.flatMap(_.execute(query, None, variables)).map(_.data.toString)
+        )(equalTo("""{"exists":false}"""))
+      },
+      testM("error message for invalid input object") {
+        val interpreter = graphQL(resolver).interpreter
+        val query       = gqldoc("""
+             query test($character: CharacterObjectArgs!) {
+               exists(character: $character)
+              }""")
+
+        val characterArg = ObjectValue(Map(
+            "name" -> StringValue("Amos Burton"),
+            "nicknames" -> ListValue(List())
+          ))
+
+        val variables = Map("character" -> characterArg)
+
+        assertM(
+          interpreter.flatMap(_.execute(query, None, variables)).map(_.errors.toString)
+        )(equalTo("""TODO: Better Error Message Here"""))
       },
       testM("skip directive") {
         val interpreter = graphQL(resolver).interpreter
